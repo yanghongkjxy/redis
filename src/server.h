@@ -258,7 +258,8 @@ typedef long long mstime_t; /* millisecond time type. */
 #define BLOCKED_WAIT 2    /* WAIT for synchronous replication. */
 #define BLOCKED_MODULE 3  /* Blocked by a loadable module. */
 #define BLOCKED_STREAM 4  /* XREAD. */
-#define BLOCKED_NUM 5     /* Number of blocked states. */
+#define BLOCKED_ZSET 5    /* BZPOP et al. */
+#define BLOCKED_NUM 6     /* Number of blocked states. */
 
 /* Client request types */
 #define PROTO_REQ_INLINE 1
@@ -315,6 +316,8 @@ typedef long long mstime_t; /* millisecond time type. */
 /* List related stuff */
 #define LIST_HEAD 0
 #define LIST_TAIL 1
+#define ZSET_MIN 0
+#define ZSET_MAX 1
 
 /* Sort operations */
 #define SORT_OP_GET 0
@@ -646,7 +649,7 @@ typedef struct blockingState {
     mstime_t timeout;       /* Blocking operation timeout. If UNIX current time
                              * is > timeout then the operation timed out. */
 
-    /* BLOCKED_LIST and BLOCKED_STREAM */
+    /* BLOCKED_LIST, BLOCKED_ZSET and BLOCKED_STREAM */
     dict *keys;             /* The keys we are waiting to terminate a blocking
                              * operation such as BLPOP or XREAD. Or NULL. */
     robj *target;           /* The key that should receive the element,
@@ -762,7 +765,7 @@ struct sharedObjectsStruct {
     *masterdownerr, *roslaveerr, *execaborterr, *noautherr, *noreplicaserr,
     *busykeyerr, *oomerr, *plus, *messagebulk, *pmessagebulk, *subscribebulk,
     *unsubscribebulk, *psubscribebulk, *punsubscribebulk, *del, *unlink,
-    *rpop, *lpop, *lpush, *emptyscan,
+    *rpop, *lpop, *lpush, *zpopmin, *zpopmax, *emptyscan,
     *select[PROTO_SHARED_SELECT_CMDS],
     *integers[OBJ_SHARED_INTEGERS],
     *mbulkhdr[OBJ_SHARED_BULKHDR_LEN], /* "*<value>\r\n" */
@@ -959,8 +962,9 @@ struct redisServer {
     time_t loading_start_time;
     off_t loading_process_events_interval_bytes;
     /* Fast pointers to often looked up command */
-    struct redisCommand *delCommand, *multiCommand, *lpushCommand, *lpopCommand,
-                        *rpopCommand, *sremCommand, *execCommand,
+    struct redisCommand *delCommand, *multiCommand, *lpushCommand,
+                        *lpopCommand, *rpopCommand, *zpopminCommand,
+                        *zpopmaxCommand, *sremCommand, *execCommand,
                         *expireCommand, *pexpireCommand, *xclaimCommand;
     /* Fields used only for stats */
     time_t stat_starttime;          /* Server start time */
@@ -1628,6 +1632,7 @@ unsigned long zslGetRank(zskiplist *zsl, double score, sds o);
 int zsetAdd(robj *zobj, double score, sds ele, int *flags, double *newscore);
 long zsetRank(robj *zobj, sds ele, int reverse);
 int zsetDel(robj *zobj, sds ele);
+void genericZpopCommand(client *c, robj **keyv, int keyc, int where, int emitkey, robj *countarg);
 sds ziplistGetObject(unsigned char *sptr);
 int zslValueGteMin(double value, zrangespec *spec);
 int zslValueLteMax(double value, zrangespec *spec);
@@ -1968,6 +1973,10 @@ void zremCommand(client *c);
 void zscoreCommand(client *c);
 void zremrangebyscoreCommand(client *c);
 void zremrangebylexCommand(client *c);
+void zpopminCommand(client *c);
+void zpopmaxCommand(client *c);
+void bzpopminCommand(client *c);
+void bzpopmaxCommand(client *c);
 void multiCommand(client *c);
 void execCommand(client *c);
 void discardCommand(client *c);
@@ -2053,6 +2062,8 @@ void xackCommand(client *c);
 void xpendingCommand(client *c);
 void xclaimCommand(client *c);
 void xinfoCommand(client *c);
+void xdelCommand(client *c);
+void xtrimCommand(client *c);
 
 #if defined(__GNUC__)
 void *calloc(size_t count, size_t size) __attribute__ ((deprecated));

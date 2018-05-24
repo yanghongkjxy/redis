@@ -198,6 +198,10 @@ struct redisCommand redisCommandTable[] = {
     {"zrank",zrankCommand,3,"rF",0,NULL,1,1,1,0,0},
     {"zrevrank",zrevrankCommand,3,"rF",0,NULL,1,1,1,0,0},
     {"zscan",zscanCommand,-3,"rR",0,NULL,1,1,1,0,0},
+    {"zpopmin",zpopminCommand,-2,"wF",0,NULL,1,-1,1,0,0},
+    {"zpopmax",zpopmaxCommand,-2,"wF",0,NULL,1,-1,1,0,0},
+    {"bzpopmin",bzpopminCommand,-2,"wsF",0,NULL,1,-2,1,0,0},
+    {"bzpopmax",bzpopmaxCommand,-2,"wsF",0,NULL,1,-2,1,0,0},
     {"hset",hsetCommand,-4,"wmF",0,NULL,1,1,1,0,0},
     {"hsetnx",hsetnxCommand,4,"wmF",0,NULL,1,1,1,0,0},
     {"hget",hgetCommand,3,"rF",0,NULL,1,1,1,0,0},
@@ -313,6 +317,8 @@ struct redisCommand redisCommandTable[] = {
     {"xpending",xpendingCommand,-3,"r",0,NULL,1,1,1,0,0},
     {"xclaim",xclaimCommand,-5,"wF",0,NULL,1,1,1,0,0},
     {"xinfo",xinfoCommand,-2,"r",0,NULL,2,2,1,0,0},
+    {"xdel",xdelCommand,-2,"wF",0,NULL,1,1,1,0,0},
+    {"xtrim",xtrimCommand,-2,"wF",0,NULL,1,1,1,0,0},
     {"post",securityWarningCommand,-1,"lt",0,NULL,0,0,0,0,0},
     {"host:",securityWarningCommand,-1,"lt",0,NULL,0,0,0,0,0},
     {"latency",latencyCommand,-2,"aslt",0,NULL,0,0,0,0,0}
@@ -1013,7 +1019,7 @@ int serverCron(struct aeEventLoop *eventLoop, long long id, void *clientData) {
     if (zmalloc_used_memory() > server.stat_peak_memory)
         server.stat_peak_memory = zmalloc_used_memory();
 
-    run_with_period(10) {
+    run_with_period(100) {
         /* Sample the RSS and other metrics here since this is a relatively slow call.
          * We must sample the zmalloc_used at the same time we take the rss, otherwise
          * the frag ratio calculate may be off (ratio of two samples at different times) */
@@ -1367,6 +1373,8 @@ void createSharedObjects(void) {
     shared.rpop = createStringObject("RPOP",4);
     shared.lpop = createStringObject("LPOP",4);
     shared.lpush = createStringObject("LPUSH",5);
+    shared.zpopmin = createStringObject("ZPOPMIN",7);
+    shared.zpopmax = createStringObject("ZPOPMAX",7);
     for (j = 0; j < OBJ_SHARED_INTEGERS; j++) {
         shared.integers[j] =
             makeObjectShared(createObject(OBJ_STRING,(void*)(long)j));
@@ -1560,6 +1568,8 @@ void initServerConfig(void) {
     server.lpushCommand = lookupCommandByCString("lpush");
     server.lpopCommand = lookupCommandByCString("lpop");
     server.rpopCommand = lookupCommandByCString("rpop");
+    server.zpopminCommand = lookupCommandByCString("zpopmin");
+    server.zpopmaxCommand = lookupCommandByCString("zpopmax");
     server.sremCommand = lookupCommandByCString("srem");
     server.execCommand = lookupCommandByCString("exec");
     server.expireCommand = lookupCommandByCString("expire");
